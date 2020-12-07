@@ -9,6 +9,7 @@ struct PSocket
 {
 	SOCKET sock;
 	char msg[256];
+	sockaddr_in addr;
 };
 
 int main()
@@ -37,7 +38,7 @@ int main()
 	}
 	listen(in, 0xFFFFFFFF);
 	SOCKET out;
-	
+	sockaddr_in clientAddr;
 	std::vector<PSocket> outSockets;
 	std::cout << "Yee" << std::endl;
 	
@@ -45,7 +46,7 @@ int main()
 	ZeroMemory(MsgS, sizeof(MsgS));
 	while (true)
 	{		
-		out = accept(in, (sockaddr*)&serverHint, &sizeSH);
+		out = accept(in, (sockaddr*)&clientAddr, &sizeSH);
 		int error = WSAGetLastError();
 		if (out == INVALID_SOCKET && error != WSAEWOULDBLOCK)
 		{
@@ -61,7 +62,11 @@ int main()
 					}))
 				{
 					outSockets.push_back({ out });
-					std::cout << "New client has connected! " << std::endl;
+					outSockets.back().addr = clientAddr;
+					char ip[INET_ADDRSTRLEN];
+					inet_ntop(AF_INET, &(outSockets.back().addr.sin_addr), ip, INET_ADDRSTRLEN);
+					unsigned short port = outSockets.back().addr.sin_port;
+					std::cout << "New client has connected! Ip : "<< ip <<" | port : "<< port << std::endl;
 					ZeroMemory(outSockets.back().msg, sizeof(outSockets.back().msg));
 				}
 			}
@@ -71,7 +76,10 @@ int main()
 		{
 			if (recv(outSockets.at(i).sock, outSockets.at(i).msg, sizeof(outSockets.at(i).msg), 0) > 0)
 			{
-				std::cout << "Client sends: " << outSockets.at(i).msg << std::endl;
+				char ip[INET_ADDRSTRLEN];
+				inet_ntop(AF_INET, &(outSockets.at(i).addr.sin_addr), ip, INET_ADDRSTRLEN);
+				unsigned short port = outSockets.at(i).addr.sin_port;
+				std::cout << "Client Ip : " << ip << " | port : " << port << " sends message : "<< outSockets.at(i).msg << std::endl;
 				for (size_t j = 0; j < outSockets.size(); j++)
 				{
 					if (j == i)
@@ -79,6 +87,7 @@ int main()
 						std::string msgString = outSockets.at(i).msg;
 						if (msgString.compare("out") == 0)
 						{
+							closesocket(outSockets.at(i).sock);
 							std::swap(outSockets.at(i), outSockets.back());
 							outSockets.pop_back();
 						}
@@ -91,7 +100,7 @@ int main()
 						{
 							if (send(outSockets.at(j).sock, outSockets.at(j).msg, sizeof(outSockets.at(j).msg), 0) == SOCKET_ERROR)
 							{
-								std::cout << "Client sends error: " << WSAGetLastError() << std::endl;
+								std::cout << "Sending to client takes error: " << WSAGetLastError() << std::endl;
 							}
 							ZeroMemory(outSockets.at(j).msg, sizeof(outSockets.at(j).msg));
 						}
@@ -104,6 +113,7 @@ int main()
 	}
 	
 	closesocket(in);
+	WSACleanup();
 	system("pause");
 
 
